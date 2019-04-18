@@ -1,0 +1,199 @@
+---
+title: "LDA, QDA, Naive Bayes and logistic regression"
+output: html_notebook
+---
+# Classification of the Heart data
+```{r}
+heart<-read.table(file = "SAheart.data",sep=",",            header=T,row.names=1)
+```
+
+## Data visualisation
+
+```{r}
+plot(heart[,1:4],col=heart[,10]+1)
+#we will present the 5 com with boxplots
+boxplot(sbp~famhist,data=heart,xlab="famhist",ylab="sbp")
+boxplot(ldl~famhist,data=heart,xlab="famhist",ylab="ldl")
+boxplot(adiposity~famhist,data=heart,xlab="famhist",ylab="adiposity")
+boxplot(tobacco~famhist,data=heart,xlab="famhist",ylab="tobacco")
+n<-nrow(heart)
+```
+## split data into test and trainning sets
+```{r}
+ntrain<-round(2*n/3)
+ntest<-n-ntrain
+train<-sample(n,ntrain)
+heart.train<-heart[train,]
+heart.test<-heart[-train,]
+```
+
+## We want to train and compare different classifiers
+
+### LDA
+```{r}
+fit.lda<- lda(chd~.,data=heart.train[,-5])#train
+pred.lda<-predict(fit.lda,newdata=heart.test[,-5])#predict
+perf <-table(heart.test$chd,pred.lda$class)#table of confusion to compare class test and class prediction
+print(perf)
+err.lda <- 1-sum(diag(perf))/ntest  # error rate
+```
+### QDA
+```{r}
+fit.qda<- qda(chd~.,data=heart.train[,-5])
+pred.qda<-predict(fit.qda,newdata=heart.test[,-5])
+perf <-table(heart.test$chd,pred.qda$class)
+print(perf)
+err.qda <-1-sum(diag(perf))/ntest  # error rate
+```
+
+### naive Bayes
+```{r}
+library(naivebayes)
+```
+
+```{r}
+fit.nb<- naive_bayes(as.factor(chd)~.,data=heart.train)
+pred.nb<-predict(fit.nb,newdata=heart.test,type="class")
+pred.nb.prob<-predict(fit.nb,newdata=heart.test,type="prob")
+perf <-table(heart.test$chd,pred.nb)
+print(perf)
+err.nb <-1-sum(diag(perf))/ntest  # error rate
+```
+### logreg  
+```{r}
+fit.logreg<- glm(as.factor(chd)~.,data=heart.train,family=binomial)
+pred.logreg<-predict(fit.logreg,newdata=heart.test,type='response')
+perf <-table(heart.test$chd,pred.logreg>0.5)
+print(perf)
+err.logreg <-1-sum(diag(perf))/ntest  # error rate
+```
+
+### compare error rates:
+```{r}
+print(c(err.lda,err.qda,err.nb,err.logreg))
+```
+to have a more precise point of vue, we can repeat the process and display a better comparison
+```{r}
+M<-100
+ERR<-matrix(0,M,4)
+for(i in 1:M){
+  train<-sample(n,ntrain)
+  heart.train<-heart[train,]
+  heart.test<-heart[-train,]
+  fit.lda<- lda(chd~.,data=heart.train[,-5])
+  pred.lda<-predict(fit.lda,newdata=heart.test[,-5])
+  ERR[i,1]<-mean(heart.test$chd !=pred.lda$class)
+  fit.qda<- qda(chd~.,data=heart.train[,-5])
+  pred.qda<-predict(fit.qda,newdata=heart.test[,-5])
+  ERR[i,2]<-mean(heart.test$chd !=pred.qda$class)
+  fit.nb<- naive_bayes(as.factor(chd)~.,data=heart.train)
+  pred.nb<-predict(fit.nb,newdata=heart.test,type="class")
+  ERR[i,3]<-mean(heart.test$chd !=pred.nb)
+  fit.logreg<- glm(as.factor(chd)~.,data=heart.train,family=binomial)
+  pred.logreg<-predict(fit.logreg,newdata=heart.test,type='response')
+  ERR[i,4]<-mean(heart.test$chd != (pred.logreg>0.5))
+}
+
+```
+```{r}
+boxplot(ERR,ylab="Test error rate",names=c("LDA","QDA","NB","LR"))
+```
+## The ROC curve  
+it illustrates the performance of a binary classifier system as its discrimination threshold is varied. The curve is created by plotting the true positive rate (TPR) against the false positive rate (FPR) at various threshold settings.
+```{r}
+library(pROC)
+```
+```{r}
+roc_lda<-roc(heart.test$chd,as.vector(pred.lda$x))
+plot(roc_lda)
+roc_qda<-roc(heart.test$chd,as.vector(pred.qda$posterior[,1]))
+plot(roc_qda,add=TRUE,col='red')
+roc_nb<-roc(heart.test$chd,as.vector(pred.nb.prob[,1]))
+plot(roc_nb,add=TRUE,col='blue')
+roc_logreg<-roc(heart.test$chd,as.vector(pred.logreg))
+plot(roc_logreg,add=TRUE,col='green')
+```
+
+# Let's study the Vowel dataset
+```{r}
+vowel <- read.table('vowel.data',header=FALSE)
+names(vowel)[11]<-'class'
+n<-nrow(vowel)
+```
+## Visualisation
+```{r}
+plot(vowel[,1:5],col=vowel[,11],pch=3)
+```
+## split the data
+```{r}
+ntrain<-round(2*n/3)
+ntest<-n-ntrain
+train<-sample(n,ntrain)
+vowel.train<-vowel[train,]
+vowel.test<-vowel[-train,]
+```
+## let's train some classifiers
+### LDA
+```{r}
+fit.lda<- lda(class~.,data=vowel.train)
+pred.lda<-predict(fit.lda,newdata=vowel.test)
+perf <-table(vowel.test$class,pred.lda$class)
+print(perf)
+err.lda <- 1-sum(diag(perf))/ntest  # error rate
+```
+### QDA
+```{r}
+fit.qda<- qda(class~.,data=vowel.train)
+pred.qda<-predict(fit.qda,newdata=vowel.test)
+perf <-table(vowel.test$class,pred.qda$class)
+print(perf)
+err.qda <-1-sum(diag(perf))/ntest  # error rate
+```
+### Naive Bayes
+```{r}
+fit.nb<- naive_bayes(as.factor(class)~.,data=vowel.train)
+pred.nb<-predict(fit.nb,newdata=vowel.test,type="class")
+perf <-table(vowel.test$class,pred.nb)
+print(perf)
+err.nb <-1-sum(diag(perf))/ntest  # error rate
+```
+###Logistic regression
+```{r}
+library(nnet)#for multinom
+```
+
+```{r}
+fit.logreg<- multinom(as.factor(class)~.,data=vowel.train)
+pred.logreg<-predict(fit.logreg,newdata=vowel.test,type='class')
+perf <-table(vowel.test$class,pred.logreg)
+print(perf)
+err.logreg <-1-sum(diag(perf))/ntest  # error rate
+```
+```{r}
+print(c(err.lda,err.qda,err.nb,err.logreg))
+```
+## Compare the performances of classifiers with 10 replications
+```{r}
+M<-10
+ERR<-matrix(0,M,4)
+for(i in 1:M){
+  train<-sample(n,ntrain)
+  vowel.train<-vowel[train,]
+  vowel.test<-vowel[-train,]
+  fit.lda<- lda(class~.,data=vowel.train)
+  pred.lda<-predict(fit.lda,newdata=vowel.test)
+  ERR[i,1]<-mean(vowel.test$class !=pred.lda$class)
+  fit.qda<- qda(class~.,data=vowel.train)
+  pred.qda<-predict(fit.qda,newdata=vowel.test)
+  ERR[i,2]<-mean(vowel.test$class !=pred.qda$class)
+  fit.nb<- naive_bayes(as.factor(class)~.,data=vowel.train)
+  pred.nb<-predict(fit.nb,newdata=vowel.test,type="class")
+  ERR[i,3]<-mean(vowel.test$class !=pred.nb)
+  fit.logreg<- multinom(as.factor(class)~.,data=vowel.train)
+  pred.logreg<-predict(fit.logreg,newdata=vowel.test,type='class',trace=FALSE)
+  ERR[i,4]<-mean(vowel.test$class != pred.logreg)
+}
+
+boxplot(ERR,ylab="Test error rate",names=c("LDA","QDA","NB","LR"))
+```
+
